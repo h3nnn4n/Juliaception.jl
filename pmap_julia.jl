@@ -16,14 +16,12 @@
 @everywhere stepx   = (screenx/(maxx-minx))
 @everywhere stepy   = (screeny/(maxy-miny))
 
-@everywhere cord    = Complex( 0.285,    0.0125)
-@everywhere cord    = Complex(-0.74434, -0.10772)
 
 @everywhere iters   = 1500
 
-@everywhere aa      = 0
+@everywhere aa      = 1
 
-@everywhere function julia(c)
+@everywhere function julia(c, cord)
     dx = ((2.75125 * zoom) / screenx) / (aa*2 + 1)
     dy = ((2.75125 * zoom) / screeny) / (aa*2 + 1)
 
@@ -31,7 +29,7 @@
 
     for i in 1:(aa*2 + 1), j in 1:(aa*2 + 1)
         d = complex(dx * (i-aa), dy * (j-aa))
-        bm[i, j] = m(c + d)
+        bm[i, j] = m(c + d, cord)
     end
 
     it = sum([ bm[i, j][1] for i in 1:(aa*2 + 1), j in 1:(aa*2 + 1) ]) / ((aa*2 + 1)^2)
@@ -40,7 +38,7 @@
     return (it, zz)
 end
 
-@everywhere function m(z)
+@everywhere function m(z, cord)
     for i = 1:iters
         z = z^2 + cord
         if abs(z)>2.0
@@ -109,48 +107,17 @@ function ppm_write(img)
     end
 end
 
-function main()
-    println("\nStarting")
-
-    tic()
-    pal = load_pal("pals/sunrise2.ppm")
-
-    timert :: Float64 = toq()
-    timer  :: Float64 = timert
-
-    println("Pallete loading took:\t", timert)
-
-    ################################################
-
-    tic()
-
+function initArray()
     cmap = Array(Complex, (screenx, screeny))
 
     for y in 1:screeny, x in 1:screenx
         cmap[x, y] = Complex(minx + x*(maxx-minx)/screenx, miny + y*(maxy-miny)/screeny)
     end
 
-    timert = toq()
-    timer += timert
+    return cmap
+end
 
-    println("Preallocing took:  \t", timert)
-
-    ################################################
-
-    tic()
-
-    bitmap_z = reshape(pmap(julia, cmap, err_retry=true, err_stop=false), (screenx, screeny))
-
-    timert = toq()
-    timer += timert
-
-    println("Iterating took:  \t", timert)
-
-    ################################################
-
-    tic()
-    #=bitmap = reshape([ (bitmap_z[i, j][1] ) for i in 1:screenx, j in 1:screeny], (screenx, screeny))=#
-
+function normalizer(bitmap_z)
     bitmap_t = Array(Float64, (screenx, screeny))
 
     for i in 1:screenx, j in 1:screeny
@@ -187,15 +154,11 @@ function main()
 
     total_hist = sum(histogram)
 
+    return bitmap
+end
 
-    timert = toq()
-    timer += timert
-
-    println("Normalization took:\t", timert)
-
-    ################################################
-
-    tic()
+function colorizer(bitmap, pal)
+    x, y = size(bitmap)
     bitmap_color = Array((Int, Int, Int), (x,y))
 
     for i in 1:x, j in 1:y
@@ -215,6 +178,61 @@ function main()
         #=bitmap_color[i, j] = get_color(pal, (bitmap[i, j] * 4) % 255)=#
         #=end=#
     end
+
+    return bitmap_color
+end
+
+
+function main()
+    println("\nStarting")
+
+    tic()
+    pal = load_pal("pals/sunrise2.ppm")
+
+    timert :: Float64 = toq()
+    timer  :: Float64 = timert
+
+    println("Pallete loading took:\t", timert)
+
+    ################################################
+
+    tic()
+
+    cord = Complex(-0.74434, -0.10772)
+    cmap = initArray()
+
+    timert = toq()
+    timer += timert
+
+    println("Preallocing took:  \t", timert)
+
+    ################################################
+
+    tic()
+
+    bitmap_z = reshape(pmap(x -> julia(x, cord), cmap, err_retry=true, err_stop=false), (screenx, screeny))
+
+    timert = toq()
+    timer += timert
+
+    println("Iterating took:  \t", timert)
+
+    ################################################
+
+    tic()
+
+    bitmap = normalizer(bitmap_z)
+
+    timert = toq()
+    timer += timert
+
+    println("Normalization took:\t", timert)
+
+    ################################################
+
+    tic()
+
+    bitmap_color = colorizer(bitmap, pal)
 
     timert = toq()
     timer += timert
