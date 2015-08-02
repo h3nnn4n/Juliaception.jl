@@ -1,29 +1,36 @@
+@everywhere screenx = 1920
+@everywhere screeny = 1080
 @everywhere screenx = 800
 @everywhere screeny = 600
-#=@everywhere screenx = 1920=#
-#=@everywhere screeny = 1080=#
+#=@everywhere screenx = 400=#
+#=@everywhere screeny = 300=#
+#=@everywhere screenx = 200=#
+#=@everywhere screeny = 150=#
 
-@everywhere xcenter = ( 0.0)
-@everywhere ycenter = ( 0.0)
+@everywhere xcenter = (-0.525)
+@everywhere ycenter = (-0.250)
 
-@everywhere zoom    = ( 1.5)
+@everywhere xzoom    = ( 1.791915)
+@everywhere yzoom    = ( 1.35515)
 
-@everywhere minx    = (xcenter + zoom)
-@everywhere maxx    = (xcenter - zoom)
-@everywhere miny    = (ycenter + zoom)
-@everywhere maxy    = (ycenter - zoom)
+@everywhere minx    = (xcenter + xzoom)
+@everywhere maxx    = (xcenter - xzoom)
+@everywhere miny    = (ycenter + yzoom)
+@everywhere maxy    = (ycenter - yzoom)
 
 @everywhere stepx   = (screenx/(maxx-minx))
 @everywhere stepy   = (screeny/(maxy-miny))
 
-
-@everywhere iters   = 1500
+@everywhere iters   = 400
 
 @everywhere aa      = 1
 
+
+@everywhere bailout = 66.6
+
 @everywhere function julia(c, cord)
-    dx = ((2.75125 * zoom) / screenx) / (aa*2 + 1)
-    dy = ((2.75125 * zoom) / screeny) / (aa*2 + 1)
+    dx = ((2.125 * xzoom) / screenx) / (aa*2 + 1)
+    dy = ((2.125 * yzoom) / screeny) / (aa*2 + 1)
 
     bm = Array((Any), (aa*2 + 1, aa*2 + 1))
 
@@ -40,11 +47,17 @@ end
 
 @everywhere function m(z, cord)
     for i = 1:iters
-        z = z^2 + cord
-        if abs(z)>2.0
+
+        #=z = sin(z) * (cord)=#
+        #=z = cos(z) * (cord)=#
+
+        z = sin(z) * (cord) + z^2
+
+        if abs(z) > bailout
             w = (i, z)
             return w
         end
+
     end
 
     return (0, z)
@@ -64,7 +77,7 @@ function load_pal(name)
 
     r, g, b = 0, 0, 0
 
-    while eof(file_pal) == false
+    while eof(file_pal) == false && pivot < 255
         pivot += 1
 
         r = int(readline(file_pal))
@@ -95,15 +108,9 @@ function ppm_write(img)
     for j = 1:y, i = 1:x
         p = img[i,j]
 
-        #=if p == (0,0,0)=#
-            #=write(out, uint8(0))=#
-            #=write(out, uint8(0))=#
-            #=write(out, uint8(0))=#
-        #=else=#
-            write(out, uint8(p[1]))
-            write(out, uint8(p[2]))
-            write(out, uint8(p[3]))
-        #=end=#
+        write(out, uint8(p[1]))
+        write(out, uint8(p[2]))
+        write(out, uint8(p[3]))
     end
 end
 
@@ -120,77 +127,96 @@ end
 function normalizer(bitmap_z)
     bitmap_t = Array(Float64, (screenx, screeny))
 
+
     for i in 1:screenx, j in 1:screeny
         if bitmap_z[i, j][1] == 0
             bitmap_t[i, j] = 0.0
         else
             mag = abs(bitmap_z[i, j][2])
-            #=print("mag = ", mag, " ")=#
-            #=print("log = ", log(mag), " \n")=#
-            bitmap_t[i, j] = (bitmap_z[i, j][1] + 1 - log( abs(log(mag))) / log(2))
+            bitmap_t[i, j] = (bitmap_z[i, j][1] + 1 - log( abs(log(mag))) / log(4))
         end
     end
 
-    #=histogram = Array(Int, iters+1)=#
-    histogram = Array(Int, 255)
+
+    nn = int( maximum(bitmap_t) )
+
+    histogram = Array(Int, nn)
     fill!(histogram, 0)
 
     x, y = size(bitmap_t)
 
-    max = maximum(bitmap_t) / 255
+    bitmap = bitmap_t #[ int(bitmap_t[i, j] / max) for i in 1:x, j in 1:y ]
 
-    bitmap = [ int(bitmap_t[i, j] / max) for i in 1:x, j in 1:y ]
+    return bitmap, [1]
 
     for i = 1:x, j = 1:y
-
-        #=println(bitmap[i, j] )=#
-
-        if bitmap[i, j] <= 0
-            #=histogram[ 1 ] += 1=#
-        else
-            histogram[ bitmap[i, j] ] += 1
+        if bitmap[i, j] > 0 && bitmap[i, j] < nn
+            histogram[ int(floor(bitmap[i, j])) ] += 1
         end
     end
 
     total_hist = sum(histogram)
 
-    return bitmap
+    p   = Array(Float64, (screenx, screeny))
+    fda = zeros(Float64, nn)
+
+    for i in 1:nn
+        p[i] = (histogram[i] * (nn)) / (x/y) :: Float64
+    end
+
+    for i in 1:nn
+        for j in 1:i
+            fda[i] += int(p[j])
+        end
+    end
+
+    return bitmap, fda
 end
 
-function colorizer(bitmap, pal)
+function colorizer(bitmap, fda, pal)
     x, y = size(bitmap)
     bitmap_color = Array((Int, Int, Int), (x,y))
 
+    max  = maximum(fda) / 255
+    maxb = maximum(bitmap) / 255
+
     for i in 1:x, j in 1:y
-        if bitmap[i, j] == 0
-            bitmap[i, j] += 1
+        if bitmap[i, j] <= 0
+            bitmap[i, j] = 1
         end
 
-        #=hue = 0.0=#
-        #=for k in 1:bitmap[i, j]=#
-            #=hue += float(histogram[k] / total_hist)=#
-        #=end=#
+        if bitmap[i, j] > 255
+            bitmap[i, j] = 255
+        end
 
-        #=bitmap_color[i, j] = get_color(pal, int(hue * 254)+1)=#
+        #=println(fda[ bitmap[i, j] ], " ", bitmap[i, j])=#
 
-        bitmap_color[i, j] = get_color(pal, bitmap[i, j])
+        bitmap_color[i, j] = get_color(pal, int(bitmap[i, j] / maxb))
 
-        #=bitmap_color[i, j] = get_color(pal, (bitmap[i, j] * 4) % 255)=#
-        #=end=#
+        #=bitmap_color[i, j] = get_color(pal, int( fda[ int(bitmap[i, j]) ] / max))=#
+
     end
 
     return bitmap_color
 end
 
-
 function main()
     println("\nStarting")
 
     tic()
-    pal = load_pal("pals/sunrise2.ppm")
+
+    #=println("Running at ", sum( pmap(peakflops, [ 2000 for i = 1:nworkers()])) / 10^9, " GFlops.")=#
+    #=println("Running at ", sum( pmap(peakflops, [ 2000 for i = 1:nworkers()])) / 10^9, " GFlops.")=#
 
     timert :: Float64 = toq()
     timer  :: Float64 = timert
+    println("Measurament took:   \t", timert)
+
+    tic()
+    pal = load_pal("pals/pastel.ppm")
+
+    timert = toq()
+    timer += timert
 
     println("Pallete loading took:\t", timert)
 
@@ -198,7 +224,10 @@ function main()
 
     tic()
 
-    cord = Complex(-0.74434, -0.10772)
+    cord = Complex( 1.0059512
+                  , 0.5525
+                ) * 1.0 #pi/2.0
+
     cmap = initArray()
 
     timert = toq()
@@ -221,7 +250,7 @@ function main()
 
     tic()
 
-    bitmap = normalizer(bitmap_z)
+    bitmap, fda = normalizer(bitmap_z)
 
     timert = toq()
     timer += timert
@@ -232,7 +261,7 @@ function main()
 
     tic()
 
-    bitmap_color = colorizer(bitmap, pal)
+    bitmap_color = colorizer(bitmap, fda, pal)
 
     timert = toq()
     timer += timert
