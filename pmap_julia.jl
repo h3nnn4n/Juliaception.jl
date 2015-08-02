@@ -205,8 +205,7 @@ function main()
 
     tic()
 
-    #=println("Running at ", sum( pmap(peakflops, [ 2000 for i = 1:nworkers()])) / 10^9, " GFlops.")=#
-    #=println("Running at ", sum( pmap(peakflops, [ 2000 for i = 1:nworkers()])) / 10^9, " GFlops.")=#
+    println("Running at ", sum( pmap(peakflops, [ 2000 for i = 1:nworkers()])) / 10^9, " GFlops.")
 
     timert :: Float64 = toq()
     timer  :: Float64 = timert
