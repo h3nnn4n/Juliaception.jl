@@ -1,9 +1,11 @@
 @everywhere screenx = 7680
 @everywhere screeny = 4320
+@everywhere screenx = 3849
+@everywhere screeny = 2160
 @everywhere screenx = 1920
 @everywhere screeny = 1080
-#=@everywhere screenx = 800=#
-#=@everywhere screeny = 600=#
+@everywhere screenx = 800
+@everywhere screeny = 600
 #=@everywhere screenx = 400=#
 #=@everywhere screeny = 300=#
 #=@everywhere screenx = 200=#
@@ -12,8 +14,8 @@
 @everywhere xcenter = (-0.0)
 @everywhere ycenter = (-0.0)
 
-@everywhere xzoom    = ( 2.79914)
-@everywhere yzoom    = ( 3.2539551)
+@everywhere xzoom    = ( 1.5 )
+@everywhere yzoom    = ( 1.5 )
 
 @everywhere minx    = (xcenter + xzoom)
 @everywhere maxx    = (xcenter - xzoom)
@@ -27,15 +29,13 @@
 
 @everywhere aa      = 1
 
-@everywhere bailout = 66.6
+@everywhere bailout = 2.0
 
 @everywhere function m(z, cord)
     for i = 1:iters
-
-        z = sin(z) * (cord)
-
+        z = z^2 + cord
+        #=z = sin(z) * (cord)=#
         #=z = cos(z) * (cord)=#
-
         #=z = sin(z) * (cord) + (z^2.0)=#
 
         if abs(z) > bailout
@@ -48,19 +48,9 @@
     return (0, z)
 end
 
-@everywhere function julia_line(c, cord)
-    e = Array((Any), screenx)
-
-    for x in 1:screenx
-        e[x] = julia(Complex(minx + x*(maxx-minx)/screenx, imag(c)), cord)
-    end
-
-    return e
-end
-
 @everywhere function julia(c, cord)
-    dx = ((2.125 * xzoom) / screenx) / (aa*2 + 1)
-    dy = ((2.125 * yzoom) / screeny) / (aa*2 + 1)
+    dx = ((4.25 * xzoom) / screenx) / (aa*2 + 1)
+    dy = ((4.25 * yzoom) / screeny) / (aa*2 + 1)
 
     bm = Array((Any), (aa*2 + 1, aa*2 + 1))
 
@@ -73,6 +63,16 @@ end
     zz = sum([ bm[i, j][2] for i in 1:(aa*2 + 1), j in 1:(aa*2 + 1) ]) / ((aa*2 + 1)^2)
 
     return (it, zz)
+end
+
+@everywhere function julia_line(c, cord)
+    e = Array((Any), screenx)
+
+    for x in 1:screenx
+        e[x] = julia(Complex(minx + x*(maxx-minx)/screenx, imag(c)), cord)
+    end
+
+    return e
 end
 
 function load_pal(name)
@@ -224,7 +224,7 @@ function main()
     println("Measurament took:   \t", timert)
 
     tic()
-    pal = load_pal("pals/friendly.ppm")
+    pal = load_pal("pals/copy.ppm")
 
     timert = toq()
     timer += timert
@@ -235,9 +235,9 @@ function main()
 
     tic()
 
-    cord = Complex( 1.2859512
-                  , 0.87555525
-                ) * pi/2.0
+    cord = Complex(-0.687
+                  , 0.312
+                  )# * pi/2.0
 
     cmap = initArray_perLine()
 
